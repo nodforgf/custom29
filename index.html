@@ -2234,21 +2234,19 @@
             if (!music || !musicBtn || !volumeSlider || !volumeControl) return;
 
             let hideVolumeTimeout = null;
-            music.volume = 0.5;
+            // ไม่ set volume ที่นี่ — ให้ unlockAudio เป็นคนจัดการ
 
             window.addEventListener('experienceStarted', function () {
-                // เพลงถูก play แล้วใน startExperience — แค่อัปเดต icon
+                // เพลงเล่นอยู่แล้ว (ถูก play ใน gesture touchstart) — แค่อัปเดต icon
+                // ไม่เรียก play() ซ้ำ เพราะจะโดน Chrome บล็อก (อยู่นอก gesture context)
                 if (!music.paused) {
+                    music.volume = 0.5;
                     playIcon.style.display  = 'none';
                     pauseIcon.style.display = 'block';
                 } else {
-                    music.play().then(function () {
-                        playIcon.style.display  = 'none';
-                        pauseIcon.style.display = 'block';
-                    }).catch(function () {
-                        playIcon.style.display  = 'block';
-                        pauseIcon.style.display = 'none';
-                    });
+                    // fallback: ถ้ายังไม่ได้เล่น แสดง play icon ให้กดเอง
+                    playIcon.style.display  = 'block';
+                    pauseIcon.style.display = 'none';
                 }
             });
 
