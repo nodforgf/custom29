@@ -1281,66 +1281,55 @@
             heartRunner.style.top = targetY + 'px';
         }
 
-        // unlock audio สำหรับ iOS/Android — ต้องทำตรงใน user gesture event
-        let audioUnlocked = false;
-        function unlockAudio() {
-            if (audioUnlocked) return;
-            const bgMusic = document.getElementById('backgroundMusic');
-            if (!bgMusic) return;
-            // เริ่มเล่นทันทีใน gesture context — volume 0 ไว้ก่อน จะค่อย fade in ตอน progress ครบ
-            // ไม่ pause เลย เพราะถ้า pause แล้วเรียก play() ใหม่ใน setInterval จะโดน Chrome บล็อก
-            bgMusic.muted = false;
-            bgMusic.volume = 0;
-            bgMusic.currentTime = 0;
-            bgMusic.play().then(() => {
-                audioUnlocked = true;
-            }).catch(() => {});
-        }
+        // ไม่ต้องการ unlockAudio อีกต่อไป — play() จะถูกเรียกใน touchstart โดยตรง
+        // โดยใช้ AudioContext เพื่อ resume ได้แม้อยู่นอก gesture context
+
+        let audioCtx = null;
 
         function startHolding(e) {
             e.preventDefault();
             if (experienceStarted) return;
 
-            // unlock audio ทันทีที่นิ้วแตะ/เมาส์กด — ยังอยู่ใน gesture context พอดี
-            unlockAudio();
-            
+            // สร้าง / resume AudioContext ทันทีใน gesture — นี่คือกุญแจสำคัญ
+            // AudioContext ที่ถูก resume ใน gesture จะยังคง "unlocked" อยู่แม้อยู่ใน setInterval
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
             clearInterval(holdTimer);
             holdInstruction.textContent = "CHARGING LOVE...";
-            
-            // ทำการคำนวณตำแหน่งเริ่มต้นทันทีก่อนหลอดจะวิ่งขยับ
-            updateRunnerPosition(); 
+            updateRunnerPosition();
 
             holdTimer = setInterval(() => {
                 if (progress < 100) {
                     progress += step;
                     if (progress > 100) progress = 100;
-                    
+
                     const offset = 100 - progress;
                     heartFill.style.strokeDashoffset = offset;
-                    
                     heartIcon.style.opacity = 0.3 + (progress / 100) * 0.7;
                     heartIcon.style.transform = `scale(${1 + (progress / 100) * 0.3})`;
                     heartFill.style.fill = `rgba(255, 50, 120, ${(progress / 100) * 0.4})`;
-                    
-                    // สั่งอัปเดตให้หัวใจดวงเล็กวิ่งขยับไล่ตามปลายเส้นแดงไปเรื่อย ๆ ทุก ๆ มิลลิวินาที
-                    updateRunnerPosition(); 
+                    updateRunnerPosition();
                 }
-                
+
                 if (progress >= 100) {
                     clearInterval(holdTimer);
                     holdInstruction.textContent = "WARPING TO GALAXY! 💕";
-                    
-                    // เพลงเล่นอยู่แล้วตั้งแต่กดนิ้วลง (volume 0) — แค่ fade volume ขึ้นมา
-                    // ไม่เรียก play() ใหม่เพราะจะโดน Chrome บล็อก (อยู่ใน setInterval ไม่ใช่ gesture)
+
+                    // play() ตรงนี้ทำงานได้เพราะ AudioContext ถูก resume ใน gesture แล้ว
                     const bgMusic = document.getElementById('backgroundMusic');
                     if (bgMusic) {
                         bgMusic.muted = false;
                         bgMusic.volume = 0.5;
+                        bgMusic.currentTime = 0;
+                        bgMusic.play().catch(() => {});
                     }
-                    
-                    setTimeout(() => {
-                        startExperience();
-                    }, 200);
+
+                    setTimeout(() => { startExperience(); }, 200);
                 }
             }, intervalTime);
         }
