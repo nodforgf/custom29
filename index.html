@@ -1229,7 +1229,8 @@
             experienceStarted = true;
             experienceStartMs = performance.now();
             startOverlay.classList.add('hidden');
-            // เพลงเล่นไปแล้วตอนกดหัวใจครบ — เปิดอีกครั้งเผื่อกรณีพิเศษ (เช่น กด ENTER button แทน hold)
+            // เพลงเล่นอยู่แล้ว (volume 0.5) ไม่ต้อง play ซ้ำ
+            // เผื่อกรณีพิเศษที่ audio ยังไม่เล่น (เช่น skip hold heart)
             const bgMusic = document.getElementById('backgroundMusic');
             if (bgMusic && bgMusic.paused) {
                 bgMusic.muted = false;
@@ -1286,23 +1287,14 @@
             if (audioUnlocked) return;
             const bgMusic = document.getElementById('backgroundMusic');
             if (!bgMusic) return;
-            // unmute และเล่นเพลง (audio ถูก autoplay muted ไว้แล้ว)
+            // เริ่มเล่นทันทีใน gesture context — volume 0 ไว้ก่อน จะค่อย fade in ตอน progress ครบ
+            // ไม่ pause เลย เพราะถ้า pause แล้วเรียก play() ใหม่ใน setInterval จะโดน Chrome บล็อก
             bgMusic.muted = false;
-            bgMusic.volume = 0.5;
+            bgMusic.volume = 0;
+            bgMusic.currentTime = 0;
             bgMusic.play().then(() => {
-                // pause ไว้ก่อน รอจนกด hold ครบแล้วค่อย resume
-                bgMusic.pause();
-                bgMusic.currentTime = 0;
                 audioUnlocked = true;
-            }).catch(() => {
-                // ถ้า play ยังไม่ได้ ลอง play แล้ว pause เพื่อ unlock context ก่อน
-                bgMusic.play().then(() => {
-                    bgMusic.pause();
-                    bgMusic.currentTime = 0;
-                    bgMusic.volume = 0.5;
-                    audioUnlocked = true;
-                }).catch(() => {});
-            });
+            }).catch(() => {});
         }
 
         function startHolding(e) {
@@ -1338,13 +1330,12 @@
                     clearInterval(holdTimer);
                     holdInstruction.textContent = "WARPING TO GALAXY! 💕";
                     
-                    // เล่นเพลง — audio context ถูก unlock ไว้แล้วตอน touchstart/mousedown
+                    // เพลงเล่นอยู่แล้วตั้งแต่กดนิ้วลง (volume 0) — แค่ fade volume ขึ้นมา
+                    // ไม่เรียก play() ใหม่เพราะจะโดน Chrome บล็อก (อยู่ใน setInterval ไม่ใช่ gesture)
                     const bgMusic = document.getElementById('backgroundMusic');
                     if (bgMusic) {
                         bgMusic.muted = false;
                         bgMusic.volume = 0.5;
-                        bgMusic.currentTime = 0;
-                        bgMusic.play().catch(err => console.log("Music play failed:", err));
                     }
                     
                     setTimeout(() => {
