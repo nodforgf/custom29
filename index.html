@@ -709,7 +709,7 @@
             <button class="frev-btn" id="frev-close">รับไว้เลย 💕</button>
         </div>
     </div>
-    <audio id="backgroundMusic" loop autoplay muted>
+    <audio id="backgroundMusic" loop>
         <source src="mp3.mp3" type="audio/mpeg">
     </audio>
     <div class="music-control" id="musicControlWrapper" style="display:none">
@@ -1229,12 +1229,13 @@
             experienceStarted = true;
             experienceStartMs = performance.now();
             startOverlay.classList.add('hidden');
-            // เพลงเล่นอยู่แล้ว (volume 0.5) ไม่ต้อง play ซ้ำ
-            // เผื่อกรณีพิเศษที่ audio ยังไม่เล่น (เช่น skip hold heart)
+            // play() ตรงนี้ — ถูกเรียกจาก setTimeout 200ms หลัง hold ครบ
+            // browser ยังถือว่าอยู่ใน user activation window (ภายใน 1 วินาที)
             const bgMusic = document.getElementById('backgroundMusic');
-            if (bgMusic && bgMusic.paused) {
+            if (bgMusic) {
                 bgMusic.muted = false;
                 bgMusic.volume = 0.5;
+                bgMusic.currentTime = 0;
                 bgMusic.play().catch(() => {});
             }
             window.dispatchEvent(new CustomEvent('experienceStarted'));
@@ -1282,22 +1283,10 @@
         }
 
         // ไม่ต้องการ unlockAudio อีกต่อไป — play() จะถูกเรียกใน touchstart โดยตรง
-        // โดยใช้ AudioContext เพื่อ resume ได้แม้อยู่นอก gesture context
-
-        let audioCtx = null;
 
         function startHolding(e) {
             e.preventDefault();
             if (experienceStarted) return;
-
-            // สร้าง / resume AudioContext ทันทีใน gesture — นี่คือกุญแจสำคัญ
-            // AudioContext ที่ถูก resume ใน gesture จะยังคง "unlocked" อยู่แม้อยู่ใน setInterval
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
 
             clearInterval(holdTimer);
             holdInstruction.textContent = "CHARGING LOVE...";
@@ -1319,16 +1308,6 @@
                 if (progress >= 100) {
                     clearInterval(holdTimer);
                     holdInstruction.textContent = "WARPING TO GALAXY! 💕";
-
-                    // play() ตรงนี้ทำงานได้เพราะ AudioContext ถูก resume ใน gesture แล้ว
-                    const bgMusic = document.getElementById('backgroundMusic');
-                    if (bgMusic) {
-                        bgMusic.muted = false;
-                        bgMusic.volume = 0.5;
-                        bgMusic.currentTime = 0;
-                        bgMusic.play().catch(() => {});
-                    }
-
                     setTimeout(() => { startExperience(); }, 200);
                 }
             }, intervalTime);
@@ -2226,14 +2205,10 @@
             // ไม่ set volume ที่นี่ — ให้ unlockAudio เป็นคนจัดการ
 
             window.addEventListener('experienceStarted', function () {
-                // เพลงเล่นอยู่แล้ว (ถูก play ใน gesture touchstart) — แค่อัปเดต icon
-                // ไม่เรียก play() ซ้ำ เพราะจะโดน Chrome บล็อก (อยู่นอก gesture context)
                 if (!music.paused) {
-                    music.volume = 0.5;
                     playIcon.style.display  = 'none';
                     pauseIcon.style.display = 'block';
                 } else {
-                    // fallback: ถ้ายังไม่ได้เล่น แสดง play icon ให้กดเอง
                     playIcon.style.display  = 'block';
                     pauseIcon.style.display = 'none';
                 }
